@@ -4,96 +4,41 @@ using DataStructures
 using DataFrames
 using ZMQ
 
+include("reporter.jl")
+include("macros.jl")
 
-const DEFAULT_PORT = 6911
 
-type ReportServer
-    ctx::Context
-    sock::Socket
-    messages::Deque{String}
-end
 
-function ReportServer()
+function run_server()
     ctx = Context(1)
-    sock = Socket(ctx, PULL)
-    server = ReportServer(ctx, sock, Deque{String}())
-    @async runserver(server)  # TODO: if port is in use,
-                              #  this will go unnoticed
-    server
-end
-
-type Reporter
-    sock::Socket
-    
-    function Reporter(;port=DEFAULT_PORT)
-        ctx = Context(1)
-        sock = Socket(ctx, PUSH)
-        connect(sock, "tcp://localhost:$port")
-        new(sock)
+    serv_sock = Socket(ctx, PULL)
+    bind(serv_sock, "tcp://*:5555")
+    while true
+        s = bytestring(recv(serv_sock))
+        println(s)
     end
 end
 
-function runserver(server::ReportServer; port=DEFAULT_PORT)
-    bind(server.sock, "tcp://*:$port")
-    while true        
-        msg = bytestring(recv(server.sock))
-        push!(server.messages, msg)
+
+# TODO: gracefully shutdown server on control signal
+
+function run_client(client_id)
+    ctx = Context(1)
+    cli_sock = Socket(ctx, PUSH)
+    connect(cli_sock, "tcp://localhost:5555")
+    for i=1:100
+        rand(10, 10)
+        send(cli_sock, Message("$client_id:$i"))
     end
 end
 
-function Base.close(server::ReportServer)
-    ZMQ.close(server.sock)
-    ZMQ.close(server.ctx)
-end
-
-
-function Base.close(reporter::Reporter)
-    ZMQ.close(reporter.sock)
-end
-
-
-function report(reporter::Reporter, text::String)
-    send(reporter.sock, Message(text))
-end
-
-macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
-    return quote
-        report_server = ReportServer()
-        @sync begin
-            for userid=1:$nusers
-                reporter = Reporter()
-                @async begin
-                    for iter=1:$ntimes
-                        t = @elapsed $ex
-                        report(reporter, "$(time()),$userid,$iter,$t")
-                    end                    
-                end
-                close(reporter)
-            end
+function main()
+    @sync begin
+        @async run_server()        
+        for client_id=1:100            
+            @async run_client(client_id)
         end
-        close(report_server)
+        println("started all")
     end
-end
-
-
-
-
-
-
-
-function zmq_test()
-    ctx1 = Context(1)
-    serv = Socket(ctx1, PULL)
-    bind(serv, "tcp://*:5555")
-
-    ctx2 = Context(1)
-    cli = Socket(ctx2, PUSH)
-    connect(cli, "tcp://localhost:5555")
-
-    send(cli, Message("hello"))
-    bytestring(recv(serv))
-
-    send(cli, Message("hello2"))
-    bytestring(recv(serv))
 end
 
