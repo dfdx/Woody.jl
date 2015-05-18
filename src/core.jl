@@ -3,28 +3,57 @@ using Requests
 using DataStructures
 using DataFrames
 using ZMQ
+using Compat
 
-include("reportserver.jl")
-include("reporter.jl")
+# include("reportserver.jl")
+# include("reporter.jl")
+include("collector.jl")
 include("macros.jl")
 
 
 
+function test_collector()
+    c = Collector()
+    @async start(c)
+    # r = Reporter(c.port)
+    r = Reporter(5019)
+    collect(r, "hello")
+    collect(r, "how are you?")
+    collect(r, "bye")
+    dmp = getdump(r)
+    println(dmp)
+end
+
+function run_collector()
+    c = Collector()
+    println("PORT: $(c.port)")
+    start(c)
+end
+
+function run_reporter(port)
+    r = Reporter(port)
+    collect(r, "hello")
+    collect(r, "how are you?")
+    collect(r, "bye")
+    dmp = getdump(r)
+    println(dmp) 
+end
+
 
 #########################################
 
-function test_reporter()
-    rserv = ReportServer()
-    r = Reporter(rserv.port)
-    r = Reporter(45485)
-    @async runserver(rserv)
-    report(r, "hello")
-    report(r, "bye")
-    summary = finalsummary(r)
-    println(summary)
-    close(r)
+## function test_reporter()
+##     rserv = ReportServer()
+##     r = Reporter(rserv.port)
+##     # r = Reporter(45485)
+##     @async runserver(rserv)
+##     report(r, "hello")
+##     report(r, "bye")
+##     summary = finalsummary(r)
+##     println(summary)
+##     close(r)
 
-end
+## end
 
 
 

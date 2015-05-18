@@ -2,13 +2,14 @@
 macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
     return quote
         rserv = ReportServer()
+        @async runserver(rserv)
         port = rserv.port
         @sync begin
-            for userid=1:$nusers
+            for uid=1:$nusers
                 @async try
                     println("starting worker $uid")
                     r = Reporter(port)
-                    for iter=1:$ntimes
+                    for itr=1:$ntimes
                         t = @elapsed $ex
                         # println("userid=$uid,iter=$itr")
                         report(r, "$(time()),$uid,$itr,$t")
@@ -20,8 +21,8 @@ macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
                 end
             end
         end
-        println("starting server")
-        runserver(rserv)  # TODO: how to stop consuming
-        rserv.messages
+        r = Reporter(port)
+        summ = finalsummary(r)
+        summ
     end
 end
