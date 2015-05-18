@@ -10,7 +10,7 @@ end
 
 
 function ReportServer()
-    ctx = Context(1)
+    ctx = Context()
     sock = Socket(ctx, PULL)
     port = -1
     bound = false
@@ -22,8 +22,7 @@ function ReportServer()
             bound = true
         end
     end
-    server = ReportServer(ctx, sock, port, Deque{String}())
-    @async runserver(server)
+    server = ReportServer(ctx, sock, port, Deque{String}())    
     server
 end
 
@@ -31,7 +30,12 @@ end
 function runserver(server::ReportServer)
     while true
         msg = bytestring(recv(server.sock))
-        push!(server.messages, msg)
+        if msg == "[exit]"
+            info("Got termination signal, exiting: $server")
+            break
+        else 
+            push!(server.messages, msg)
+        end
     end
 end
 
@@ -43,6 +47,10 @@ end
 
 
 function Base.close(server::ReportServer)
+    # send termination signal
+    cli_sock = Socket(Context(), PUSH)
+    connect(cli_sock, "tcp://localhost:$(server.port)")
+    send(cli_sock, Message("[exit]"))
     ZMQ.close(server.sock)
     ZMQ.close(server.ctx)
 end
@@ -54,7 +62,7 @@ type Reporter
     port::Int
 
     function Reporter(port::Int)
-        ctx = Context(1)
+        ctx = Context()
         sock = Socket(ctx, PUSH)
         connect(sock, "tcp://localhost:$port")
         new(sock, port)

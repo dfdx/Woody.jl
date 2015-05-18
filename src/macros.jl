@@ -5,23 +5,23 @@ macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
         port = rserv.port
         @sync begin
             for userid=1:$nusers
-                @async begin
+                @async try
+                    println("starting worker $uid")
                     r = Reporter(port)
-                    try
                     for iter=1:$ntimes
                         t = @elapsed $ex
-                        println("userid=$userid,iter=$iter")
-                        report(r, "$(time()),$userid,$iter,$t")
+                        # println("userid=$uid,iter=$itr")
+                        report(r, "$(time()),$uid,$itr,$t")
                     end
-                    # close(r)
-                    catch e
-                        println("REPORTER SOCKET: $(r.sock)")
-                    end
+                    close(r)
+                    println("worker $uid finished")
+                catch e
+                    println(e)
                 end
-
             end
         end
-        # close(rserv)
+        println("starting server")
+        runserver(rserv)  # TODO: how to stop consuming
         rserv.messages
     end
 end

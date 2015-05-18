@@ -7,11 +7,13 @@ using ZMQ
 include("reporter.jl")
 include("macros.jl")
 
-
-
-function run_server()
+function create_server()
     ctx = Context(1)
     serv_sock = Socket(ctx, PULL)
+    serv_sock
+end
+
+function run_server(serv_sock)    
     bind(serv_sock, "tcp://*:5555")
     while true
         s = bytestring(recv(serv_sock))
@@ -20,7 +22,6 @@ function run_server()
 end
 
 
-# TODO: gracefully shutdown server on control signal
 
 function run_client(client_id)
     ctx = Context(1)
@@ -30,15 +31,20 @@ function run_client(client_id)
         rand(10, 10)
         send(cli_sock, Message("$client_id:$i"))
     end
+    close(cli_sock)
 end
 
 function main()
-    @sync begin
-        @async run_server()        
+    serv_sock = create_server()
+    @async run_server(serv_sock)
+    @sync begin        
         for client_id=1:100            
             @async run_client(client_id)
-        end
+        end 
         println("started all")
     end
+    println("all workers are done")
+    close(serv_sock)
+    println("done.")
 end
 
