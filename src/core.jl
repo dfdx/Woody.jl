@@ -4,10 +4,12 @@ using DataStructures
 using DataFrames
 using ZMQ
 using Compat
+using Winston
 
 # include("reportserver.jl")
 # include("reporter.jl")
 include("collector.jl")
+include("summary.jl")
 include("macros.jl")
 
 
@@ -15,13 +17,15 @@ include("macros.jl")
 function test_collector()
     c = Collector()
     @async start(c)
-    # r = Reporter(c.port)
-    r = Reporter(5019)
-    collect(r, "hello")
-    collect(r, "how are you?")
-    collect(r, "bye")
+    r = Reporter(c.port)
+    # r = Reporter(5019)
+    report(r, "hello")
+    report(r, "how are you?")
+    report(r, "bye")
     dmp = getdump(r)
     println(dmp)
+    sendclose(r)
+    close(r)
 end
 
 function run_collector()
@@ -29,12 +33,12 @@ function run_collector()
     println("PORT: $(c.port)")
     start(c)
 end
-
+ 
 function run_reporter(port)
     r = Reporter(port)
-    collect(r, "hello")
-    collect(r, "how are you?")
-    collect(r, "bye")
+    report(r, "hello")
+    report(r, "how are you?")
+    report(r, "bye")
     dmp = getdump(r)
     println(dmp) 
 end

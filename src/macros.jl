@@ -1,28 +1,28 @@
 
 macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
     return quote
-        rserv = ReportServer()
-        @async runserver(rserv)
-        port = rserv.port
+        c = Collector()
+        @async start(c)
+        port = c.port
         @sync begin
             for uid=1:$nusers
                 @async try
-                    println("starting worker $uid")
                     r = Reporter(port)
                     for itr=1:$ntimes
                         t = @elapsed $ex
-                        # println("userid=$uid,iter=$itr")
                         report(r, "$(time()),$uid,$itr,$t")
+                        sleep(0.1)
                     end
                     close(r)
-                    println("worker $uid finished")
                 catch e
-                    println(e)
+                    warn(e)
                 end
             end
         end
+        sleep(0.1) # give collector some time to receive all messages
         r = Reporter(port)
-        summ = finalsummary(r)
-        summ
+        dmp = getdump(r)
+        sendclose(r)
+        todataframe(dmp)
     end
 end

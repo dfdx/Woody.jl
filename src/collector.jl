@@ -1,6 +1,7 @@
 
 import Base.start
 import Base.show
+import Base.close
 
 function bindrandom(sock)
     port = -1
@@ -57,7 +58,7 @@ show(io::IO, r::Reporter) = print(io, "Reporter($(r.port))")
 isspecial(msg::String) = @compat startswith(msg, "!!")
 
 
-function parse_special(msg::String)
+function parsespecial(msg::String)
     if contains(msg, ":")
         # command with parameters
         cmd, argstr = split(msg[3:end], ":")
@@ -69,7 +70,7 @@ function parse_special(msg::String)
 end
 
 
-function dump_buffer(c::Collector)    
+function dumpbuffer(c::Collector)    
     n = length(c.buffer)
     arr = Array(String, n)
     # revert buffer's reverse order
@@ -80,20 +81,19 @@ function dump_buffer(c::Collector)
 end
 
 
-function send_dump(c::Collector, host, port)
+function senddump(c::Collector, host, port)
     ctx = Context()
     sock = Socket(ctx, PUSH)
     connect(sock, "tcp://$host:$port")
-    dmp = dump_buffer(c)
+    dmp = dumpbuffer(c)
     send(sock, dmp)
     close(sock)
 end
 
-function process_special(c::Collector, msg::String)
-    cmd, args = parse_special(msg)
-    println(args)
+function handlespecial(c::Collector, msg::String)
+    cmd, args = parsespecial(msg)    
     if cmd == "dump"
-        send_dump(c, args[1], args[2])
+        senddump(c, args[1], args[2])
     elseif cmd == "close"
         close(c.ctx)
     else
@@ -106,17 +106,16 @@ function start(c::Collector)
     while true
         msg = bytestring(recv(c.sock))
         if isspecial(msg)
-            process_special(c, msg)
+            handlespecial(c, msg)
         else
-            unshift!(c.buffer, msg)
-            println(msg)
+            unshift!(c.buffer, msg)            
         end
     end
 end
 
 
 
-function collect(r::Reporter, msg::String)
+function report(r::Reporter, msg::String)
     send(r.sock, msg)
 end
 
@@ -129,3 +128,11 @@ function getdump(r::Reporter)
     dmp = bytestring(recv(sock))
     dmp
 end
+
+
+function sendclose(r::Reporter)
+    send(r.sock, "!!close")
+end
+
+# TODO: in ZMQ, do we need to close Context separately?
+close(r::Reporter) = close(r.sock)
