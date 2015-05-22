@@ -1,10 +1,11 @@
 
-using Requests
+# using Requests
 using DataStructures
 using DataFrames
 using ZMQ
 using Compat
 using Winston
+using Redis
 
 # include("reportserver.jl")
 # include("reporter.jl")
@@ -12,6 +13,19 @@ include("collector.jl")
 include("summary.jl")
 include("macros.jl")
 
+
+
+function redis_test(nusers, niter)
+    @time @sync for u=1:nusers
+        @async begin
+            conn = Redis.RedisConnection()
+            for i=1:niter
+                Redis.lpush(conn, "mytest", "hello")
+                # Redis.lpop(conn, "mytest")
+            end
+        end
+    end 
+end
 
 
 function test_collector()
@@ -43,6 +57,26 @@ function run_reporter(port)
     println(dmp) 
 end
 
+
+function zmq_test(nusers, niter)
+    ctx = Context()
+    s = Socket(ctx, PULL)
+    bind(s, "tcp://*:5556")
+    t = @async while true
+        msg = bytestring(recv(s))
+    end
+    @time @sync for i=1:nusers
+        @async begin
+            c = Socket(ctx, PUSH)
+            connect(c, "tcp://localhost:5556")
+            for j=1:niter
+                send(c, "hello")
+            end            
+            close(c)
+        end        
+    end
+    close(s)
+end
 
 #########################################
 

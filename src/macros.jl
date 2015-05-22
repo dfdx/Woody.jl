@@ -9,9 +9,12 @@ macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
                 @async try
                     r = Reporter(port)
                     for itr=1:$ntimes
-                        t = @elapsed $ex
-                        report(r, "$(time()),$uid,$itr,$t")
-                        sleep(0.1)
+                        try
+                            t = @elapsed $ex
+                            report(r, "$(time()),1,$uid,$itr,$t")
+                        catch e
+                            report(r, "$(time()),0,$uid,$itr,$t")
+                        end
                     end
                     close(r)
                 catch e
@@ -26,3 +29,8 @@ macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
         todataframe(dmp)
     end
 end
+
+
+
+# TODO: @runtimes and @runduring should only call $ex, but not report anything
+# TODO: @reporttimes and @reportduring shoud handle reporting
