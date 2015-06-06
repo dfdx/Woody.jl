@@ -2,42 +2,46 @@
 type Collector
     ctx::Context
     sock::Socket
-    mem::Memorizer
-    coll_port::Int
-    redis_port::Int
+    buffers::Dict{String, Vector{String}}
+    bufpos::Dict{String, Int}
+    port::Int
 end
 
 
-function Collector(coll_port, redis_port)
+function Collector(port)
     ctx = Context()
-    sock = Socket(ctx, PULL)
-    bind(sock, "tcp://*:$coll_port")
-    mem = RedisMemorizer(redis_port=redis_port)
-    return Collector(ctx, sock, mem, coll_port, redis_port)
+    sock = Socket(ctx, REP)
+    bind(sock, "tcp://*:$port")
+    return Collector(ctx, sock, Dict(), Dict(), port)
 end
 
+Base.show(io::IO, c::Collector) =
+    print(io, "Collector($(c.sock.data),$(c.port))")
 
-function process_message(c, msg)
-    # TODO
+
+function handle_message(msg)
+    if @compat startswith(msg, "r:")       # report from workers        
+        println("got message: `$msg`")
+        return "ok"
+    elseif @compat startswith(msg, "c:")   # control message
+        # no control messages yet
+        return "ok"
+    else
+        print("ERROR (collector): can't understand message `$msg`")
+        return ("unknown message type: shoud start either with 'r' " *
+                "(normal report) or with 'c' (control message)")
+    end
 end
 
 function run_collector_loop(c)
     try
         while true
             msg = bytestring(recv(c.sock))
-            process_message(c, msg)
+            resp = handle_message(msg)
+            send(c.sock, resp)
         end
     finally
-        close(ctx)
+        close(c.ctx)
     end
 end
 
-
-function start_collector()
-    coll_port = Base.get(ENV, "COLLECTOR_PORT", 5588)
-    redis_port = Base.get(ENV, "REDIS_PORT", 6379)
-    c = Collector(coll_port, redis_port)
-    colltask = @async run_collector_loop(c)
-    return colltask
-
-end
