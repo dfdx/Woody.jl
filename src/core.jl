@@ -9,10 +9,21 @@ using Redis
 
 # include("reportserver.jl")
 # include("reporter.jl")
+# include("collector.jl")
+# include("collector2.jl")
+
+include("memorizer.jl")
 include("collector.jl")
+
 include("summary.jl")
 include("macros.jl")
 
+
+
+# 1. post messages through ZMQ
+# 2. collect to buffer, dump to Redis
+# 3. send special message to finalize session
+# 4. read result from Redis
 
 
 function redis_test(nusers, niter)
