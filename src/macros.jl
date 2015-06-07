@@ -1,7 +1,7 @@
 
 const COLLECTOR_PORT = 5543
 
-macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
+macro repeattimes(nusers::Int, ntimes::Int, ex::Expr)
     return quote
         @sync for usr=1:$nusers
             @async for itr=1:$ntimes
@@ -12,7 +12,7 @@ macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
 end
 
 
-macro runduring(nusers::Int, seconds::Int, ex::Expr)
+macro repeatduring(nusers::Int, seconds::Int, ex::Expr)
     return quote
         @sync for usr=1:$nusers
             start = time()
@@ -24,7 +24,7 @@ macro runduring(nusers::Int, seconds::Int, ex::Expr)
 end
 
 
-macro repeattimes(nusers::Int, ntimes::Int, ex::Expr)
+macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
     return quote
         ctr = Controller(COLLECTOR_PORT)
         @sync for usr=1:$nusers
@@ -50,7 +50,7 @@ macro repeattimes(nusers::Int, ntimes::Int, ex::Expr)
 end
 
 
-macro repeatduring(nusers::Int, seconds::Int, ex::Expr)
+macro runduring(nusers::Int, seconds::Int, ex::Expr)
     return quote
         ctr = Controller(COLLECTOR_PORT)
         @sync for usr=1:$nusers
