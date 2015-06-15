@@ -4,6 +4,7 @@ type Collector
     sock::Socket
     buffers::Dict{String, Vector{String}}
     bufpos::Dict{String, Int}
+    tempfiles::Dict{String, @compat Tuple{String, IO}}
     port::Int
 end
 
@@ -12,14 +13,29 @@ function Collector(port)
     ctx = Context()
     sock = Socket(ctx, REP)
     bind(sock, "tcp://*:$port")
-    return Collector(ctx, sock, Dict(), Dict(), port)
+    return Collector(ctx, sock, Dict(), Dict(), Dict(), port)
 end
 
 Base.show(io::IO, c::Collector) =
     print(io, "Collector($(c.sock.data),$(c.port))")
 
 
-const BUF_SIZE = 1_000_000
+const BUF_SIZE = 100_000
+
+
+function finalize_key(c, key)
+    pos = c.bufpos[key]
+    dumpbuf(c, key)
+    path, out = c.tempfiles[key]
+    flush(out)
+    timetable = open(in -> aggregate(in), path)
+    delete!(c.buffers, key)
+    delete!(c.bufpos, key)
+    close(out)
+    rm(path)
+    delete!(c.tempfiles, key)
+    return timetable
+end
 
 
 function handle_control_message(c, msg)
@@ -29,16 +45,13 @@ function handle_control_message(c, msg)
         info("Creating new key: $key")
         c.buffers[key] = Array(String, BUF_SIZE)
         c.bufpos[key] = 1
+        c.tempfiles[key] = mktemp()
         return "ok"
     elseif cmd == "finalize"
         key = argstr
         info("Finalizing key: $key")
         if haskey(c.buffers, key)
-            pos = c.bufpos[key]
-            data = join(c.buffers[key][1:pos-1], "\n")
-            delete!(c.buffers, key)
-            delete!(c.bufpos, key)
-            return "$data"
+            return finalize_key(c, key)
         else
             warn("Key $key doesn't exist in collector")
             return "error: trying to finalize non-existing/deleted key: $key"
@@ -49,12 +62,21 @@ function handle_control_message(c, msg)
 end
 
 
+function dumpbuf(c, key)
+    pos = c.bufpos[key]
+    data = join(c.buffers[key][1:pos-1], "\n")
+    io = c.tempfiles[key][2]
+    write(io, data * "\n")
+    c.bufpos[key] = 1
+end
+
+
 function handle_report_message(c, msg)
     key, data = split(msg[3:end], " ", 2)
     if haskey(c.buffers, key)
         if c.bufpos[key] > length(c.buffers[key])
-            return "error: buffer is full"   # TODO: dump to disk instead
-        end    
+            dumpbuf(c, key)
+        end
         pos = c.bufpos[key]
         c.buffers[key][pos] = data
         c.bufpos[key] += 1
