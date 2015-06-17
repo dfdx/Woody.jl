@@ -23,22 +23,40 @@ Base.show(io::IO, c::Collector) =
 const BUF_SIZE = 100_000
 
 
-function send_data(c::Collector, key::String)
-    send(c.sock, "no data, hahaha!")
+function dumpbuf(c, key)
+    pos = c.bufpos[key]
+    data = join(c.buffers[key][1:pos-1], "\n")
+    io = c.tempfiles[key][2]
+    write(io, data * "\n")
+    c.bufpos[key] = 1
+end
+
+
+function send_data_and_remove(c, key)
+    path, out = c.tempfiles[key]
+    try
+        flush(out)
+        close(out)
+        open(path) do inp
+            for line in eachline(inp)
+                send(c.sock, line[1:end-1]) # remove \n at the end
+                recv(c.sock)
+            end
+        end
+    finally
+        rm(path)
+    end
+    send(c.sock, "--END--")
 end
 
 
 function finalize_key(c, key)
     pos = c.bufpos[key]
     dumpbuf(c, key)
-    path, out = c.tempfiles[key]
-    flush(out)
     # timetable = open(in -> aggregate(in), path)
-    send_data(c, key)
+    send_data_and_remove(c, key)
     delete!(c.buffers, key)
     delete!(c.bufpos, key)
-    close(out)
-    rm(path)
     delete!(c.tempfiles, key)
 end
 
@@ -64,15 +82,6 @@ function handle_control_message(c, msg)
     else
         send(c.sock, "unknown control message: $msg")
     end
-end
-
-
-function dumpbuf(c, key)
-    pos = c.bufpos[key]
-    data = join(c.buffers[key][1:pos-1], "\n")
-    io = c.tempfiles[key][2]
-    write(io, data * "\n")
-    c.bufpos[key] = 1
 end
 
 

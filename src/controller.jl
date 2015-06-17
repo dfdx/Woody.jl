@@ -45,7 +45,7 @@ end
 @doc """Get all data and remove buffers on Collector""" ->
 function finalize(ctr::Controller)
     send(ctr.sock, "c:finalize $(ctr.key)")
-    # read all data from socker
+    # read all data from socket
     stop = false
     while !stop
         line = bytestring(recv(ctr.sock))
@@ -53,6 +53,7 @@ function finalize(ctr::Controller)
             stop = true
         else
             println(line)
-        end        
+        end
+        send(ctr.sock, "ok")
     end
 end

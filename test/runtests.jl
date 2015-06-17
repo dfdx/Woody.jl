@@ -14,7 +14,7 @@ end
 
 function test_collector()
     c = Collector(5543)
-    Woody.run_collector_loop(c)
+    run_collector_loop(c)
 end
 
 
