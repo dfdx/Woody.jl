@@ -20,7 +20,7 @@ Base.show(io::IO, ctr::Controller) =
     print(io, "Controller($(ctr.sock.data),$(ctr.port))")
 
 
-@doc """Send control message""" -> 
+@doc """Send control message""" ->
 function control(sock::Socket, msg::String)
     send(sock, "c:" * msg)
     resp = bytestring(recv(sock))
@@ -28,7 +28,7 @@ function control(sock::Socket, msg::String)
 end
 
 
-@doc """Send control message""" -> 
+@doc """Send control message""" ->
 function control(ctr::Controller, msg::String)
     return control(ctr.sock, msg)
 end
@@ -44,7 +44,15 @@ end
 
 @doc """Get all data and remove buffers on Collector""" ->
 function finalize(ctr::Controller)
-    data = control(ctr, "finalize $(ctr.key)")
+    send(ctr.sock, "c:finalize $(ctr.key)")
+    # read all data from socker
+    stop = false
+    while !stop
+        line = bytestring(recv(ctr.sock))
+        if line == "--END--"
+            stop = true
+        else
+            println(line)
+        end        
+    end
 end
-
-

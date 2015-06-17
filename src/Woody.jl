@@ -4,7 +4,9 @@ export @runtimes,
        @runduring,
        Collector,
        Reporter,
-       Controller
+       Controller,
+       report,
+       finalize
        
 
 include("core.jl")

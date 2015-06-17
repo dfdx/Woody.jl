@@ -23,18 +23,23 @@ Base.show(io::IO, c::Collector) =
 const BUF_SIZE = 100_000
 
 
+function send_data(c::Collector, key::String)
+    send(c.sock, "no data, hahaha!")
+end
+
+
 function finalize_key(c, key)
     pos = c.bufpos[key]
     dumpbuf(c, key)
     path, out = c.tempfiles[key]
     flush(out)
-    timetable = open(in -> aggregate(in), path)
+    # timetable = open(in -> aggregate(in), path)
+    send_data(c, key)
     delete!(c.buffers, key)
     delete!(c.bufpos, key)
     close(out)
     rm(path)
     delete!(c.tempfiles, key)
-    return timetable
 end
 
 
@@ -46,18 +51,18 @@ function handle_control_message(c, msg)
         c.buffers[key] = Array(String, BUF_SIZE)
         c.bufpos[key] = 1
         c.tempfiles[key] = mktemp()
-        return "ok"
+        send(c.sock, "ok")
     elseif cmd == "finalize"
         key = argstr
         info("Finalizing key: $key")
         if haskey(c.buffers, key)
-            return finalize_key(c, key)
+            finalize_key(c, key)
         else
             warn("Key $key doesn't exist in collector")
-            return "error: trying to finalize non-existing/deleted key: $key"
+            send(c.sock, "error: trying to finalize non-existing/deleted key: $key")
         end
     else
-        return "unknown control message: $msg"
+        send(c.sock, "unknown control message: $msg")
     end
 end
 
@@ -80,21 +85,21 @@ function handle_report_message(c, msg)
         pos = c.bufpos[key]
         c.buffers[key][pos] = data
         c.bufpos[key] += 1
-        return "ok"
+        send(c.sock, "ok")
     else
-        return "error: key doesn't exist in collector: $key"
+        send(c.sock, "error: key doesn't exist in collector: $key")
     end
 end
 
 
 function handle_message(c, msg)
     if @compat startswith(msg, "r:")       # report from workers
-        return handle_report_message(c, msg)
+        handle_report_message(c, msg)
     elseif @compat startswith(msg, "c:")   # control message
-        return handle_control_message(c, msg)
+        handle_control_message(c, msg)
     else
-        return ("unknown message type: shoud start either with 'r' " *
-                "(normal report) or with 'c' (control message)")
+        send(c.sock, "unknown message type: shoud start either with 'r' " *
+             "(normal report) or with 'c' (control message)")
     end
 end
 
@@ -102,8 +107,7 @@ function run_collector_loop(c)
     try
         while true
             msg = bytestring(recv(c.sock))
-            resp = handle_message(c, msg)
-            send(c.sock, resp)
+            handle_message(c, msg)
         end
     finally
         close(c.ctx)
