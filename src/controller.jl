@@ -47,13 +47,15 @@ function finalize(ctr::Controller)
     send(ctr.sock, "c:finalize $(ctr.key)")
     # read all data from socket
     stop = false
+    timetable = String[]
     while !stop
         line = bytestring(recv(ctr.sock))
         if line == "--END--"
             stop = true
         else
-            println(line)
+            push!(timetable, line)
         end
         send(ctr.sock, "ok")
     end
+    return timetable
 end

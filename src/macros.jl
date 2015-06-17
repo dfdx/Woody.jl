@@ -52,8 +52,8 @@ macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
                 report(r, "$now,$usr,$itr,$success,$err,$t")
             end
         end
-        timetable = finalize(ctr)
-        split(timetable, "\n")
+        info("Ready, collecting results...")
+        finalize(ctr)        
     end
 end
 
@@ -92,8 +92,8 @@ macro runduring(nusers::Int, seconds::Int, ex::Expr)
                 end
             end
         end
-        timetable = finalize(ctr)
-        split(timetable, "\n")
+        info("Ready, collecting results...")
+        finalize(ctr)
     end
 end
 

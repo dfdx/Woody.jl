@@ -65,14 +65,14 @@ function handle_control_message(c, msg)
     cmd, argstr = split(msg[3:end], " ", 2)
     if cmd == "createkey"
         key = argstr
-        info("Creating new key: $key")
+        # info("Creating new key: $key")
         c.buffers[key] = Array(String, BUF_SIZE)
         c.bufpos[key] = 1
         c.tempfiles[key] = mktemp()
         send(c.sock, "ok")
     elseif cmd == "finalize"
         key = argstr
-        info("Finalizing key: $key")
+        # info("Finalizing key: $key")
         if haskey(c.buffers, key)
             finalize_key(c, key)
         else

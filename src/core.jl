@@ -14,3 +14,7 @@ include("controller.jl")
 include("macros.jl")
 include("analysis.jl")
 
+@async begin
+    c = Collector(COLLECTOR_PORT)
+    run_collector_loop(c)
+end
