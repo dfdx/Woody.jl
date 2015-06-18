@@ -2,22 +2,19 @@
 using Compat
 using Docile
 using ZMQ
-using DataFrames
 using IncDataStats
 
 
 const COLLECTOR_PORT = int(get(ENV, "WOODY_PORT", 5543))
 
+include("timetable.jl")
 include("collector.jl")
 include("reporter.jl")
+include("controller.jl")
 include("macros.jl")
+include("analysis.jl")
 
-
-function run_reporter()
-    mr = Reporter(5543)
-    create_key(mr)
-    @time for i=1:1_000_000
-        report(mr, "good morning")
-    end
-    destroy_key(mr)
+@async begin
+    c = Collector(COLLECTOR_PORT)
+    run_collector_loop(c)
 end

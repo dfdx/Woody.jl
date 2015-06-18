@@ -4,17 +4,16 @@ type Collector
     sock::Socket
     buffers::Dict{String, Vector{String}}
     bufpos::Dict{String, Int}
-    paths::Dict{String, String}  # key => path
-    files::Dict{String, IO}      # key => file
+    tempfiles::Dict{String, @compat Tuple{String, IO}}
     port::Int
 end
 
 
 function Collector(port)
     ctx = Context()
-    sock = Socket(ctx, PULL)
+    sock = Socket(ctx, REP)
     bind(sock, "tcp://*:$port")
-    return Collector(ctx, sock, Dict(), Dict(), Dict(), Dict(), port)
+    return Collector(ctx, sock, Dict(), Dict(), Dict(), port)
 end
 
 Base.show(io::IO, c::Collector) =
@@ -27,38 +26,61 @@ const BUF_SIZE = 100_000
 function dumpbuf(c, key)
     pos = c.bufpos[key]
     data = join(c.buffers[key][1:pos-1], "\n")
-    io = c.files[key]
+    io = c.tempfiles[key][2]
     write(io, data * "\n")
     c.bufpos[key] = 1
 end
 
 
+function send_data_and_remove(c, key)
+    path, out = c.tempfiles[key]
+    try
+        flush(out)
+        close(out)
+        open(path) do inp
+            for line in eachline(inp)
+                send(c.sock, line[1:end-1]) # remove \n at the end
+                recv(c.sock)
+            end
+        end
+    finally
+        rm(path)
+    end
+    send(c.sock, "--END--")
+end
+
+
+function finalize_key(c, key)
+    pos = c.bufpos[key]
+    dumpbuf(c, key)
+    # timetable = open(in -> aggregate(in), path)
+    send_data_and_remove(c, key)
+    delete!(c.buffers, key)
+    delete!(c.bufpos, key)
+    delete!(c.tempfiles, key)
+end
+
+
 function handle_control_message(c, msg)
     cmd, argstr = split(msg[3:end], " ", 2)
-    if cmd == "create"
-        println(argstr)
-        key, path = split(argstr)
-        info("Creating new key: $key")
+    if cmd == "createkey"
+        key = argstr
+        # info("Creating new key: $key")
         c.buffers[key] = Array(String, BUF_SIZE)
         c.bufpos[key] = 1
-        c.paths[key] = path
-        c.files[key] = open(path, "w")
-    elseif cmd == "destroy"
+        c.tempfiles[key] = mktemp()
+        send(c.sock, "ok")
+    elseif cmd == "finalize"
         key = argstr
-        info("Destroying key: $key")
+        # info("Finalizing key: $key")
         if haskey(c.buffers, key)
-            println("all keys: $(keys(c.buffers))")
-            dumpbuf(c, key)
-            close(c.files[key])
-            delete!(c.buffers, key)
-            delete!(c.bufpos, key)
-            delete!(c.paths, key)
-            delete!(c.files, key)
+            finalize_key(c, key)
         else
             warn("Key $key doesn't exist in collector")
+            send(c.sock, "error: trying to finalize non-existing/deleted key: $key")
         end
     else
-        warn("Unknown control message: $msg")
+        send(c.sock, "unknown control message: $msg")
     end
 end
 
@@ -72,8 +94,9 @@ function handle_report_message(c, msg)
         pos = c.bufpos[key]
         c.buffers[key][pos] = data
         c.bufpos[key] += 1
+        send(c.sock, "ok")
     else
-        warn("Key doesn't exist in collector: $key")
+        send(c.sock, "error: key doesn't exist in collector: $key")
     end
 end
 
@@ -84,7 +107,7 @@ function handle_message(c, msg)
     elseif @compat startswith(msg, "c:")   # control message
         handle_control_message(c, msg)
     else
-        warn("unknown message type: shoud start either with 'r' " *
+        send(c.sock, "unknown message type: shoud start either with 'r' " *
              "(normal report) or with 'c' (control message)")
     end
 end

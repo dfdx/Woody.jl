@@ -34,10 +34,9 @@ Example - run GET request by 100 users 5000 times each:
 """ ->
 macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
     return quote
-        mr = Reporter(COLLECTOR_PORT)
-        create_key(mr)
+        ctr = Controller(COLLECTOR_PORT)
         @sync for usr=1:$nusers
-            r = Reporter(COLLECTOR_PORT, mr.key)
+            r = Reporter(COLLECTOR_PORT, ctr.key)
             @async for itr=1:$ntimes
                 success = true
                 errorbuf = IOBuffer()
@@ -54,8 +53,7 @@ macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
             end
         end
         info("Ready, collecting results...")
-        result = destroy_key(mr)
-        result
+        finalize(ctr)        
     end
 end
 
