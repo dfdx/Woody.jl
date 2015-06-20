@@ -73,7 +73,7 @@ function handle_report_message(c, msg)
         c.buffers[key][pos] = data
         c.bufpos[key] += 1
     else
-        warn("Key doesn't exist in collector: $key")
+        warn("Key doesn't exist in collector: key = $key; message = $msg")
     end
 end
 

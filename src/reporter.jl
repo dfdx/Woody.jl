@@ -49,9 +49,9 @@ function destroy_key(mr::Reporter)
     sleep(1) # give collector some time to flush last data to a file
     result = "<not initialized>"    
     open(mr.path) do inp
-        result = readlines(inp)
-        println("number of lines: $(length(result))")
+        result = map(strip, readlines(inp))
+        println("number of lines: $(length(result))") 
     end    
-    # rm(mr.path)
+    rm(mr.path)
     return result
 end

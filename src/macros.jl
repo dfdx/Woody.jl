@@ -53,9 +53,8 @@ macro runtimes(nusers::Int, ntimes::Int, ex::Expr)
                 report(r, "$now,$usr,$itr,$success,$err,$t")
             end
         end
-        info("Ready, collecting results...")
-        result = destroy_key(mr)
-        result
+        info("Finished, collecting results")
+        destroy_key(mr)        
     end
 end
 
@@ -71,9 +70,10 @@ Example - run GET request by 100 users during 30 seconds:
 """ ->
 macro runduring(nusers::Int, seconds::Int, ex::Expr)
     return quote
-        ctr = Controller(COLLECTOR_PORT)
+        mr = Reporter(COLLECTOR_PORT)
+        create_key(mr)
         @sync for usr=1:$nusers
-            r = Reporter(COLLECTOR_PORT, ctr.key)
+            r = Reporter(COLLECTOR_PORT, mr.key)
             start = time()
             @async begin
                 itr = 0
@@ -94,8 +94,7 @@ macro runduring(nusers::Int, seconds::Int, ex::Expr)
                 end
             end
         end
-        info("Ready, collecting results...")
-        finalize(ctr)
+        destroy_key(mr)
     end
 end
 
