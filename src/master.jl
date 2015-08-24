@@ -40,10 +40,13 @@ end
 
 function run2()
     urls = getallurls("dump1k.csv")
-    @time @sync for url in urls
-        @async begin
-            resp = get(url)
-            println("Status: $(resp.status)")
+    n = nprocs()
+    @time @parallel for i in 1:n
+        @sync for url in urls  # should select only part
+            @async begin
+                t = @elapsed resp = get(url)
+                println("Status: $(resp.status) ($(t)ms)")
+            end
         end
     end 
 end
