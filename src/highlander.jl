@@ -1,48 +1,12 @@
 
-using ZMQ
 
 
+using Requests
+using URIParser
 
-function run()
-    ctx = Context()
-    sock = Socket(ctx, PUSH)
-    bind(sock, "tcp://*:5501")
-    open("dump1k.csv") do f
-        readline(f) # header
-        for line in eachline(f)
-            url = "http://" * geturl(line)
-            println("Sending $url")
-            send(sock, url)
-        end
-    end
-    println("done")
-end
+geturl(line) = strip(split(line, ",")[4], '\"')
 
-
-function run2()
-    urls = getallurls("../dump1k.csv")
-    n = nprocs()
-    @parallel for i in 1:n
-        @sync for url in urls[i:n:length(urls)]
-            sleep(0.1)
-            @async begin
-                t = @elapsed resp = get(url)
-                println("Status: $(resp.status) ($(t) sec)")
-            end
-        end
-    end
-end
-
-run2()
-
-
-
-
-@everywhere using Requests
-
-@everywhere geturl(line) = strip(split(line, ",")[4], '\"')
-
-@everywhere function getallurls(filename)
+function getallurls(filename)
     lines = split(readall(filename), "\n")[2:end-1]
     urls = Array(String, length(lines))
     for i=1:length(lines)
@@ -52,24 +16,54 @@ run2()
 end
 
 
-@everywhere function resolvehost(url)
+function resolvehost(url)
     h = URI(url).host
     ip = string(Base.getaddrinfo(h))
     replace(url, h, ip)
 end
 
-urls = map(resolvehost, getallurls("../dump1k.csv"))[1:100]
+function resolvehosts(urls)
+    result = String[]
+    for url in urls
+        try
+            resolved = resolvehost(url)
+            push!(result, resolved)
+        catch
+            println("Can't resolve $url)")
+        end
+    end
+    return result
+end
+
+function get_stream(url::String)
+    Requests.open_stream(URI(url), Dict(), "", "GET")
+end
+
+
 
 
 function foo()
 
-    @time @sync for url in urls
+    urls = resolvehosts(getallurls("dump1k.csv"))
+
+    statuses = -ones(length(urls))
+    times = -ones(length(urls))
+    @time @sync for i=1:length(urls)
         @async begin
             try
-                t = @elapsed resp = get(url)
+                t = @elapsed resp = get(urls[i]; timeout=.8)
+                statuses[i] = resp.status
+                ## t = @elapsed begin
+                ##     s = get_stream(urls[i])
+                ##     r = readline(s)
+                ##     close(s)
+                ##     println(r)
+                ## end
+                times[i] = t
                 println("Status: $(resp.status) ($(t) sec)")
             catch
                 println("Error")
+                rethrow()
             end
         end
     end
