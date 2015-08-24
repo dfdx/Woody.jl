@@ -2,8 +2,6 @@
 using ZMQ
 
 
-geturl(line) = strip(split(line, ",")[4], '\"')
-
 
 function run()
     ctx = Context()
@@ -21,9 +19,28 @@ function run()
 end
 
 
+function run2()
+    urls = getallurls("../dump1k.csv")
+    n = nprocs()
+    @parallel for i in 1:n
+        @sync for url in urls[i:n:length(urls)]
+            sleep(0.1)
+            @async begin
+                t = @elapsed resp = get(url)
+                println("Status: $(resp.status) ($(t) sec)")
+            end
+        end
+    end
+end
+
+run2()
+
+
 
 
 @everywhere using Requests
+
+@everywhere geturl(line) = strip(split(line, ",")[4], '\"')
 
 @everywhere function getallurls(filename)
     lines = split(readall(filename), "\n")[2:end-1]
@@ -35,24 +52,39 @@ end
 end
 
 
-
-
-
-function run2()
-    urls = getallurls("dump1k.csv")
-    n = nprocs()
-    @time @parallel for i in 1:n
-        @sync for url in urls  # should select only part
-            @async begin
-                t = @elapsed resp = get(url)
-                println("Status: $(resp.status) ($(t)ms)")
-            end
-        end
-    end 
+@everywhere function resolvehost(url)
+    h = URI(url).host
+    ip = string(Base.getaddrinfo(h))
+    replace(url, h, ip)
 end
 
+urls = map(resolvehost, getallurls("../dump1k.csv"))[1:100]
 
 
+function foo()
+
+    @time @sync for url in urls
+        @async begin
+            try
+                t = @elapsed resp = get(url)
+                println("Status: $(resp.status) ($(t) sec)")
+            catch
+                println("Error")
+            end
+        end
+    end
+
+    @time for url in urls
+        begin
+            try
+                t = @elapsed resp = get(url)
+                println("Status: $(resp.status) ($(t) sec)")
+            catch
+                println("Error")
+            end
+        end
+    end
+end
 
 
 
