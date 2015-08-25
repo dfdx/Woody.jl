@@ -1,8 +1,7 @@
 
-
-
 using Requests
 using URIParser
+using Gadfly
 
 geturl(line) = strip(split(line, ",")[4], '\"')
 
@@ -24,12 +23,12 @@ end
 
 function resolvehosts(urls)
     result = String[]
-    for url in urls
-        try
-            resolved = resolvehost(url)
+    @sync for url in urls
+        @async try
+            resolved = resolvehost(strip(url))
             push!(result, resolved)
         catch
-            println("Can't resolve $url)")
+            println("Can't resolve $url")
         end
     end
     return result
@@ -40,98 +39,32 @@ function get_stream(url::String)
 end
 
 
-
-
-function foo()
-
-    urls = resolvehosts(getallurls("dump1k.csv"))
-
+function fetch_urls(urls; timeout=Inf)
     statuses = -ones(length(urls))
     times = -ones(length(urls))
-    @time @sync for i=1:length(urls)
+    @sync for i=1:length(urls)
         @async begin
             try
-                t = @elapsed resp = get(urls[i]; timeout=.8)
+                t = @elapsed resp = get(urls[i]; timeout=timeout)
                 statuses[i] = resp.status
-                ## t = @elapsed begin
-                ##     s = get_stream(urls[i])
-                ##     r = readline(s)
-                ##     close(s)
-                ##     println(r)
-                ## end
                 times[i] = t
-                println("Status: $(resp.status) ($(t) sec)")
-            catch
-                println("Error")
-                rethrow()
-            end
-        end
-    end
-
-    @time for url in urls
-        begin
-            try
-                t = @elapsed resp = get(url)
-                println("Status: $(resp.status) ($(t) sec)")
+                println("OK")
             catch
                 println("Error")
             end
         end
     end
+    return (statuses, times)
 end
 
 
+function main()
 
+    # @time urls = resolvehosts(open(readlines, expanduser("../domains.txt"))[1:5000])
+    @time urls = [strip(l) for l in open(readlines, expanduser("../ips.txt"))]
 
+    @time (statuses, times) = fetch_urls(urls[1:100])
 
-
-
-
-
-## using ZMQ
-
-
-
-
-## PROD_CONS_PORT = 5501
-
-## function runall(nworkers::Int, prod, cons::Function)
-##     # @sync
-##     begin
-##         # produce data in a separate thread
-##         # @async
-##         begin
-##             ctx = Context()
-##             prod_sock = Socket(ctx, PUSH)
-##             bind(prod_sock, "tcp://*:$PROD_CONS_PORT")
-##             for rec in ["http://www.google.com" for i=1:100]
-##                 send(prod_sock, rec)
-##             end
-##             close(prod_sock)
-##         end
-##         for i=1:nworkers
-##             # @async
-##             begin
-##                 ctx = Context()
-##                 cons_sock = Socket(ctx, PULL)
-##                 connect(sock, "tcp://localhost:$PROD_CONS_PORT")
-##                 while true
-##                     rec = bytestring(recv(cons_sock))
-##                     cons(rec)
-##                 end
-##             end
-##         end
-##     end
-## end
-
-
-## producer = ["http://www.google.com" for i=1:100]
-
-## function consumer(rec)
-##     println(rec)
-## end
-
-
-## function run()
-##     runall(10, producer, consumer)
-## end
+    plot(x=[i for i=1:length(times)], y=times)
+    
+end
